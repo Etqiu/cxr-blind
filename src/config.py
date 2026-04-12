@@ -18,6 +18,7 @@ IMAGES_DIR = BASE_PATH / "images" / "images_normalized"
 # Data Files
 REPORTS_FILE = BASE_PATH / "indiana_reports.csv"
 PROJECTIONS_FILE = BASE_PATH / "indiana_projections.csv"
+CHEXPERT_FILE = BASE_PATH / "chexpert_labels.csv"
 
 # Batch Sizes & Workers
 NUM_IMAGE_WORKERS = max(2, min(8, os.cpu_count() or 2))

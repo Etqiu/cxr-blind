@@ -26,16 +26,46 @@ CHEXPERT_PATHOLOGIES = [
     "Support Devices",
 ]
 
+from pathlib import Path
+from . import config
+
 def load_chexpert_labels(df_clean: pd.DataFrame) -> Tuple[Dict[str, Dict[str, float]], List[str]]:
     """
     Returns: lookup mapping `uid` to its approximated CheXpert pathology dictionary.
-    Since we skip Docker, we infer labels from `Problems` column natively.
+    Will attempt to load the actual `chexpert_labels.csv` to capture Type 2 (-1.0) errors.
+    If the file is missing, it will gracefully fallback to the basic heuristic regex parser.
     """
     pathology_cols = CHEXPERT_PATHOLOGIES
     lookup = {}
     
+    if config.CHEXPERT_FILE.exists():
+        print(f"Loading official CheXpert labels from {config.CHEXPERT_FILE}...")
+        df_chexpert = pd.read_csv(config.CHEXPERT_FILE)
+        
+        # Ensure UIDs align properly (e.g. 1.0 -> "1", etc.)
+        if 'uid' in df_chexpert.columns:
+            # Fill NaNs with 0.0 before creating the dict
+            df_chexpert[pathology_cols] = df_chexpert[pathology_cols].fillna(0.0)
+            for _, row in df_chexpert.iterrows():
+                try:
+                    uid_val = str(int(float(row['uid'])))
+                except (ValueError, TypeError):
+                    uid_val = str(row['uid'])
+                
+                lookup[uid_val] = {p: row.get(p, 0.0) for p in pathology_cols}
+                
+            # Second pass to ensure types match whatever df_clean has
+            for _, row in df_clean.iterrows():
+                clean_uid = str(row['uid'])
+                if clean_uid not in lookup:
+                    # Try looking up without casting (for pure string ids)
+                    if str(row['uid']) in lookup: pass
+        return lookup, pathology_cols
+
+    print(f"File {config.CHEXPERT_FILE} not found. Falling back to heuristic text mapping (Type 2 errors will be 0)...")
+    
     for _, row in df_clean.iterrows():
-        uid = row['uid']
+        uid = str(row['uid'])
         probs = str(row.get('Problems', '')).lower()
         mesh = str(row.get('MeSH', '')).lower()
         combined = probs + " " + mesh

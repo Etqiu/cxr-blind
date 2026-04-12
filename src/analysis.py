@@ -76,14 +76,14 @@ def connect_blindtype_to_deviation(
     
     for i in range(len(test_df)):
         row = test_df.iloc[i]
-        q_uid = row['uid']
+        q_uid = str(row['uid'])
         q_labels = chexpert_lookup.get(q_uid, {})
         target_ents = set(test_entities[i])
         
         blind_indices = row.get('blind_neighbors', [])
         for n_idx in blind_indices:
             n_row = train_df.iloc[n_idx]
-            n_uid = n_row['uid']
+            n_uid = str(n_row['uid'])
             n_labels = chexpert_lookup.get(n_uid, {})
             
             btype = characterize_blind_pairs(q_labels, n_labels, pathology_cols)
