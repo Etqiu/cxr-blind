@@ -20,6 +20,7 @@ This pipeline is engineered to run end-to-end on a Modal serverless backend with
    ```
 4. Analysis artifacts, CSV tables, and visualization plots will be saved to your remote Modal Volume. You can pull them down to your local machine using:
    ```bash
+   
    modal volume get radiology-data /archive/modal_artifacts/blind_pair_types.png .
    modal volume get radiology-data /archive/modal_artifacts/missing_entities_grouped_bar.png .
    modal volume get radiology-data /archive/modal_artifacts/missing_entities_heatmap.png .
