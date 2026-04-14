@@ -232,16 +232,22 @@ def run_pipeline_on_modal():
     freq_data = []
     for t in types:
         type_df = blind_pairs_df[blind_pairs_df['blind_type'] == t]
+        type_total = len(type_df)
+        
         type_missing = []
         for m_ents in type_df['missing_entities']:
             type_missing.extend(m_ents)
         type_counts_dict = Counter(type_missing)
         
         for ent in top_entities:
+            count = type_counts_dict.get(ent, 0)
+            proportion = (count / type_total * 100) if type_total > 0 else 0
+            
             freq_data.append({
                 "Entity": ent,
                 "Type": t,
-                "Count": type_counts_dict.get(ent, 0)
+                "Count": count,
+                "Prevalence (%)": round(proportion, 1)
             })
             
     freq_df = pd.DataFrame(freq_data)
@@ -252,7 +258,7 @@ def run_pipeline_on_modal():
     print(f"Table saved to {table_path}")
     
     # Pivot for plotting
-    pivot_df = freq_df.pivot(index="Entity", columns="Type", values="Count").fillna(0)
+    pivot_df = freq_df.pivot(index="Entity", columns="Type", values="Prevalence (%)").fillna(0)
     
     # 4. Grouped Bar Plot
     x = np.arange(len(top_entities))
@@ -263,8 +269,8 @@ def run_pipeline_on_modal():
     ax.bar(x, pivot_df['Type 2'], width, label='Type 2', color="#6ACC65")
     ax.bar(x + width, pivot_df['Type 3'], width, label='Type 3', color="#D65F5F")
     
-    ax.set_ylabel('Missing Entity Count')
-    ax.set_title('Top Missing RadGraph Entities by Blind Error Type')
+    ax.set_ylabel('Prevalence (% of Pairs Missing Entity)')
+    ax.set_title('Top Missing RadGraph Entities by Blind Error Type (Normalized)')
     ax.set_xticks(x)
     ax.set_xticklabels(top_entities, rotation=45, ha='right')
     ax.legend()
@@ -281,20 +287,56 @@ def run_pipeline_on_modal():
     ax.set_yticks(np.arange(len(top_entities)))
     ax.set_xticklabels(types)
     ax.set_yticklabels(top_entities)
-    ax.set_title("Heatmap: Missing RadGraph Entities per Error Type")
+    ax.set_title("Heatmap: Prevalence (%) of Missing Entities per Error Type")
     
     # Annotate Heatmap
     for i in range(len(top_entities)):
         for j in range(len(types)):
-            val = int(pivot_df.values[i, j])
-            ax.text(j, i, str(val), ha="center", va="center", color="black" if val < pivot_df.values.max()/2 else "white")
+            val = pivot_df.values[i, j]
+            color = "black" if val < pivot_df.values.max()/2 else "white"
+            ax.text(j, i, f"{val:.1f}%", ha="center", va="center", color=color)
             
-    fig.colorbar(cax)
+    fig.colorbar(cax, label='Prevalence (%)')
     plt.tight_layout()
     heatmap_path = config.ARTIFACTS_DIR / "missing_entities_heatmap.png"
     fig.savefig(heatmap_path, dpi=150)
     plt.close(fig)
     
+    # 6. RadGraph Deviation from Consensus Plot (Boxplot)
+    # Join test logic to get consensus dev
+    blind_pairs_df['query_uid_str'] = blind_pairs_df['query_uid'].astype(str)
+    test['uid_str'] = test['uid'].astype(str)
+    dev_df = pd.merge(blind_pairs_df, test[['uid_str', 'radgraph_deviation_full']], left_on='query_uid_str', right_on='uid_str', how='inner')
+    
+    fig, ax = plt.subplots(figsize=(7, 5))
+    plot_data = []
+    labels = []
+    
+    for t in types:
+        vals = dev_df[dev_df['blind_type'] == t]['radgraph_deviation_full'].dropna().values
+        if len(vals) > 0:
+            plot_data.append(vals)
+            labels.append(t)
+        else:
+            plot_data.append([0])  # Fallback for empty type
+            labels.append(t)
+            
+    bp = ax.boxplot(plot_data, patch_artist=True, labels=labels, medianprops=dict(color="black", linewidth=1.5))
+    
+    # Coloring the boxes
+    colors = ["#4878CF", "#6ACC65", "#D65F5F"]
+    for patch, color in zip(bp['boxes'], colors):
+        patch.set_facecolor(color)
+        patch.set_alpha(0.7)
+        
+    ax.set_ylabel('RadGraph Deviation from Consensus')
+    ax.set_title('Absolute RadGraph Deviation vs. Error Type')
+    ax.spines[["top", "right"]].set_visible(False)
+    plt.tight_layout()
+    dev_plot_path = config.ARTIFACTS_DIR / "radgraph_deviation_vs_type.png"
+    fig.savefig(dev_plot_path, dpi=150)
+    plt.close(fig)
+
     print("\n====== PIPELINE COMPLETE ======")
     print(f"Results, tables, and plots saved to {config.ARTIFACTS_DIR}")
 
