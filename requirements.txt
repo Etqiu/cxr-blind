@@ -10,3 +10,4 @@ open_clip_torch
 faiss-cpu
 radgraph
 modal
+google-cloud-storage

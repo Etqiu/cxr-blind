@@ -8,7 +8,7 @@ import pandas as pd
 from collections import Counter
 from typing import List, Dict, Any
 from .radgraph_utils import compute_deviation
-from .chexpert_utils import load_chexpert_labels, characterize_blind_pairs
+from .chexpert_utils import characterize_blind_pairs, load_chexpert_labels, normalize_uid
 import gc
 
 def build_consensus(
@@ -76,14 +76,14 @@ def connect_blindtype_to_deviation(
     
     for i in range(len(test_df)):
         row = test_df.iloc[i]
-        q_uid = str(row['uid'])
+        q_uid = normalize_uid(row['uid'])
         q_labels = chexpert_lookup.get(q_uid, {})
         target_ents = set(test_entities[i])
         
         blind_indices = row.get('blind_neighbors', [])
-        for n_idx in blind_indices:
+        for blind_rank, n_idx in enumerate(blind_indices):
             n_row = train_df.iloc[n_idx]
-            n_uid = str(n_row['uid'])
+            n_uid = normalize_uid(n_row['uid'])
             n_labels = chexpert_lookup.get(n_uid, {})
             
             btype = characterize_blind_pairs(q_labels, n_labels, pathology_cols)
@@ -95,10 +95,17 @@ def connect_blindtype_to_deviation(
             
             # primary query pathology approximation
             prim_pathology = next((p for p in pathology_cols if q_labels.get(p) == 1.0), "No Finding")
+            pair_id = f"{q_uid}__{n_uid}__q{i}__n{int(n_idx)}__b{blind_rank}"
             
             rows.append({
+                "pair_id": pair_id,
                 "query_uid": q_uid,
                 "neighbor_uid": n_uid,
+                "query_index": int(i),
+                "neighbor_index": int(n_idx),
+                "blind_rank": int(blind_rank),
+                "query_filename": row.get("filename"),
+                "neighbor_filename": n_row.get("filename"),
                 "primary_pathology": prim_pathology,
                 "blind_type": btype,
                 "unsupported_entities": tuple(unsupported),
